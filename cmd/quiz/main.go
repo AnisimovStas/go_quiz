@@ -5,11 +5,12 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"strings"
+	"time"
 )
 
 func main() {
 	csvFilename := flag.String("csv", "", "a csv file in the format of 'question,answer'")
+	limit := flag.String("limit", "30", "the time limit for the quiz in seconds")
 	flag.Parse()
 	if *csvFilename == "" {
 		exit("Please provide a csv file")
@@ -28,17 +29,32 @@ func main() {
 	}
 	problems := parseLines(lines)
 
+	d, _ := time.ParseDuration(*limit + "s")
+	timer := time.NewTimer(d)
+	//TODO Подумать, как можно сделать таймер на каждый вопрос
 	correct := 0
 	for i, p := range problems {
 		fmt.Printf("Problem #%d: %s = ", i+1, p.q)
-		var answer string
-		fmt.Scanf("%s\n", &answer)
-		if strings.TrimSpace(answer) == strings.TrimSpace(p.a) {
-			correct++
+		answerCh := make(chan string)
+		go func() {
+			var answer string
+			fmt.Scanf("%s\n", &answer)
+			answerCh <- answer
+		}()
+
+		select {
+		case <-timer.C:
+			fmt.Printf("\ntimer expired")
+			fmt.Printf("\nYou scored %d out of %d\n", correct, len(problems))
+			return
+		case answer := <-answerCh:
+			if answer == p.a {
+				correct++
+			}
 		}
 	}
 
-	fmt.Printf("You got %d correct out of %d\n", correct, len(problems))
+	fmt.Printf("\nYou got %d correct out of %d\n", correct, len(problems))
 }
 
 type Problem struct {
